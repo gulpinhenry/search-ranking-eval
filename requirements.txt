@@ -1,0 +1,6 @@
+h5py
+numpy
+faiss-cpu
+tqdm
+beir
+bm25s[core]==0.1.7
