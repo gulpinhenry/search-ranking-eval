@@ -12,7 +12,7 @@ class CrossEncoderIndexer(BaseIndexer):
             model_name (str): The name of the pre-trained CrossEncoder model.
         """
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model = CrossEncoder(model_name).to(self.device)
+        self.model = CrossEncoder(model_name, device=self.device)
 
     def search(self, query_id, documents_id, top_k):
         """

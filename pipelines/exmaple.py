@@ -13,5 +13,9 @@ if __name__ == "__main__":
     cosine_similarity_indexer = CosineSimilarityIndexer()
     result = cosine_similarity_indexer.search("2", pm.get_all_ids(), 10)
     print(result)
+    cross_encoder_indexer = CrossEncoderIndexer("cross-encoder/ms-marco-MiniLM-L-12-v2")
+    result = cross_encoder_indexer.search("2", pm.get_all_ids()[-100:], 10)
+    print(result)
+    
     
     
