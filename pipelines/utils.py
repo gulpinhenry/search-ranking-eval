@@ -31,26 +31,33 @@ class PassageManager(metaclass=SingletonMeta):
 
     def load_embeddings(self, filename):
         """Load embeddings from a pickle file."""
+        print(f"Loading embeddings from: {filename}")
         with open(filename, 'rb') as file:
-            data = pickle.load(file)
-        
-        if not isinstance(data, dict):
-            raise ValueError("Pickle file must contain a dictionary with passage IDs as keys.")
-        
-        for passage_id, embedding in data.items():
+            passage_ids, encoded_passages = pickle.load(file)
+
+        if not isinstance(passage_ids, list) or not isinstance(encoded_passages, list):
+            raise ValueError("Pickle file must contain a tuple of (passage_ids, encoded_passages) as lists.")
+
+        if len(passage_ids) != len(encoded_passages):
+            raise ValueError("The length of passage_ids must match the length of encoded_passages.")
+
+        for passage_id, embedding in zip(passage_ids, encoded_passages):
             self.embeddings[passage_id] = embedding
             self.ids.append(passage_id)
 
-    def load_passages(self, collection_file, subset_file):
+    def load_passages(self, collection_file, subset_file=None):
         """Load passages from a collection.tsv file and filter based on subset.tsv."""
         print(f"Loading collection file: {collection_file}")
         collection_data = pd.read_csv(collection_file, sep='\t', header=None, names=["id", "passage"], dtype={"id": str, "passage": str})
 
-        print(f"Loading subset file: {subset_file}")
-        subset_ids = pd.read_csv(subset_file, header=None, names=["id"], dtype={"id": str})
+        if (subset_file):
+            print(f"Loading subset file: {subset_file}")
+            subset_ids = pd.read_csv(subset_file, header=None, names=["id"], dtype={"id": str})
 
-        print("Filtering passages...")
-        filtered_data = collection_data[collection_data['id'].isin(subset_ids['id'])]
+            print("Filtering passages...")
+            filtered_data = collection_data[collection_data['id'].isin(subset_ids['id'])]
+        else:
+            filtered_data = collection_data
 
         for _, row in filtered_data.iterrows():
             self.passages[row['id']] = row['passage']
@@ -69,15 +76,24 @@ class PassageManager(metaclass=SingletonMeta):
 
 
 class QueryManager(metaclass=SingletonMeta):
-    def __init__(self, query_file):
+    def __init__(self, query_files, embedding_files):
         """
-        Initialize QueryManager and load queries from a TSV file.
+        Initialize QueryManager and load queries from multiple TSV files.
 
         Parameters:
-            query_file (str): The path to the query.tsv file.
+            query_files (list of str): A list of paths to the query.tsv files.
+            embedding_files (list of str, optional): A list of paths to the query embeddings files (pickle).
         """
         self.queries = {}  # Dictionary to store queries by ID
-        self.load_queries(query_file)
+        self.embeddings = {}  # Dictionary to store query embeddings by ID
+        
+        # Load queries from all specified query files
+        for query_file in query_files:
+            self.load_queries(query_file)
+        
+        # Load embeddings from all specified embedding files if provided
+        for embedding_file in embedding_files:
+            self.load_embeddings(embedding_file)
 
     def load_queries(self, query_file):
         """Load queries from a TSV file."""
@@ -87,9 +103,28 @@ class QueryManager(metaclass=SingletonMeta):
         for _, row in query_data.iterrows():
             self.queries[row['id']] = row['query']
 
+    def load_embeddings(self, embedding_file):
+        """Load query embeddings from a pickle file."""
+        print(f"Loading query embeddings from: {embedding_file}")
+        with open(embedding_file, 'rb') as file:
+            query_ids, encoded_embeddings = pickle.load(file)
+
+        if not isinstance(query_ids, list) or not isinstance(encoded_embeddings, list):
+            raise ValueError("Embedding file must contain a tuple of (query_ids, encoded_embeddings) as lists.")
+
+        if len(query_ids) != len(encoded_embeddings):
+            raise ValueError("The length of query_ids must match the length of encoded_embeddings.")
+
+        for query_id, embedding in zip(query_ids, encoded_embeddings):
+            self.embeddings[query_id] = embedding
+
     def get_query(self, query_id):
         """Get a query by its ID."""
         return self.queries.get(query_id, None)
+
+    def get_embedding(self, query_id):
+        """Get the embedding of a query by its ID."""
+        return self.embeddings.get(query_id, None)
 
     def get_all_query_ids(self):
         """Get a list of all query IDs."""

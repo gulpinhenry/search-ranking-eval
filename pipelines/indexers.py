@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from sentence_transformers import CrossEncoder
-from .utils import BaseIndexer, QueryManager, PassageManager
+from utils import BaseIndexer, QueryManager, PassageManager
 
 class CrossEncoderIndexer(BaseIndexer):
     def __init__(self, model_name):
@@ -68,7 +68,7 @@ class CosineSimilarityIndexer(BaseIndexer):
             List of tuples containing (document_id, score) for the top_k results.
         """
         # Retrieve the actual query embedding using QueryManager
-        query_embedding = self.passage_manager.get_embedding(query_id)
+        query_embedding = QueryManager().get_embedding(query_id)
         if query_embedding is None:
             raise ValueError(f"No embedding found for query ID {query_id}.")
 
