@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import numpy as np
 from sentence_transformers import CrossEncoder
 from utils import BaseIndexer, QueryManager, PassageManager
@@ -13,6 +14,7 @@ class CrossEncoderIndexer(BaseIndexer):
         """
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model = CrossEncoder(model_name, device=self.device)
+        self.passage_manager = PassageManager()
 
     def search(self, query_id, documents_id, top_k):
         """
@@ -31,15 +33,14 @@ class CrossEncoderIndexer(BaseIndexer):
         if query is None:
             raise ValueError(f"Query with ID {query_id} not found.")
 
-        # Prepare the input for the CrossEncoder on the GPU
-        inputs = [(query, doc_id) for doc_id in documents_id]
-        inputs = [(query, doc_id) for doc_id in documents_id]
+        # Prepare the input for the CrossEncoder
+        inputs = [self.passage_manager.get_passage(i) for i in documents_id]
 
-        # Get scores from the model
-        scores = self.model.predict(inputs)
+        # Get ranks from the model
+        ranks = self.model.rank(query, inputs)
 
         # Create a list of tuples (document_id, score)
-        scored_documents = list(zip(documents_id, scores))
+        scored_documents = [(documents_id[rank['corpus_id']], rank['score']) for rank in ranks]
 
         # Sort the documents by score in descending order and get the top_k
         top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]

@@ -27,7 +27,9 @@ class RetrievalPipeline:
         scores = None
         # Sequentially apply each indexer
         for indexer, k in zip(self.indexers, top_k):
-            results, scores = indexer.search(query_id, results, k)  # Pass document IDs instead of embeddings
+            search_result = indexer.search(query_id, results, k)  # Pass document IDs instead of embeddings
+            results = [x[0] for x in search_result]
+            scores = [x[1] for x in search_result]
 
 
         return results, scores  # No scores if the last indexer is not a scorer
