@@ -3,6 +3,7 @@ from torch import nn
 import numpy as np
 from sentence_transformers import CrossEncoder
 from utils import BaseIndexer, QueryManager, PassageManager
+import math
 
 class CrossEncoderIndexer(BaseIndexer):
     def __init__(self, model_name):
@@ -47,7 +48,7 @@ class CrossEncoderIndexer(BaseIndexer):
 
         return top_documents
 
-
+# Bi-encoder
 class CosineSimilarityIndexer(BaseIndexer):
     def __init__(self):
         """
@@ -97,6 +98,85 @@ class CosineSimilarityIndexer(BaseIndexer):
         top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
 
         return top_documents
+    
+class BM25Indexer(BaseIndexer):
+    def __init__(self):
+        """
+        Initialize the BM25Indexer with a custom BM25 implementation.
+        """
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.passage_manager = PassageManager()
+        self.corpus_ids = self.passage_manager.get_all_ids()
+        self.corpus_texts = [self.passage_manager.get_passage(doc_id) for doc_id in self.corpus_ids]
+        # Tokenize the corpus
+        self.corpus_tokens = [doc.split() for doc in self.corpus_texts]
+        # Build a mapping from document ID to tokens
+        self.doc_id_to_tokens = {doc_id: tokens for doc_id, tokens in zip(self.corpus_ids, self.corpus_tokens)}
+        # Compute document frequencies (DF) for each term
+        self.df = {}
+        for tokens in self.corpus_tokens:
+            unique_tokens = set(tokens)
+            for token in unique_tokens:
+                self.df[token] = self.df.get(token, 0) + 1
+        # Compute inverse document frequencies (IDF) for each term
+        self.num_documents = len(self.corpus_tokens)
+        self.idf = {}
+        for term, freq in self.df.items():
+            self.idf[term] = math.log((self.num_documents - freq + 0.5) / (freq + 0.5) + 1)
+        # Compute document lengths and average document length
+        self.doc_lengths = {doc_id: len(tokens) for doc_id, tokens in self.doc_id_to_tokens.items()}
+        if self.num_documents == 0:
+            raise ValueError("No documents found. Please check the subset file or use the full collection.")
+        self.avgdl = sum(self.doc_lengths.values()) / self.num_documents
+        # Set BM25 parameters
+        self.k1 = 1.5
+        self.b = 0.75
+
+    def score(self, query_tokens, doc_id):
+        """
+        Compute the BM25 score for a single document and query.
+        """
+        score = 0.0
+        doc_tokens = self.doc_id_to_tokens.get(doc_id, [])
+        doc_len = self.doc_lengths.get(doc_id, 0)
+        term_frequencies = {}
+        for token in doc_tokens:
+            term_frequencies[token] = term_frequencies.get(token, 0) + 1
+        for term in query_tokens:
+            if term in self.idf:
+                tf = term_frequencies.get(term, 0)
+                numerator = self.idf[term] * tf * (self.k1 + 1)
+                denominator = tf + self.k1 * (1 - self.b + self.b * doc_len / self.avgdl)
+                score += numerator / denominator
+        return score
+
+    def search(self, query_id, documents_id, top_k):
+        """
+        Search the index for the top_k results based on the query ID using BM25.
+
+        Parameters:
+            query_id: The ID of the query.
+            documents_id: The list of document IDs to search over.
+            top_k: The number of top results to return.
+
+        Returns:
+            List of tuples containing (document_id, score) for the top_k results.
+        """
+        # Retrieve the actual query text using QueryManager
+        query = QueryManager().get_query(query_id)
+        if query is None:
+            raise ValueError(f"Query with ID {query_id} not found.")
+        # Tokenize the query
+        query_tokens = query.split()
+        # Compute BM25 scores for the documents
+        scored_documents = []
+        for doc_id in documents_id:
+            if doc_id in self.doc_id_to_tokens:
+                score = self.score(query_tokens, doc_id)
+                scored_documents.append((doc_id, score))
+        # Sort the documents by score in descending order and get the top_k
+        top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
+        return top_documents
 
 # Example usage
 if __name__ == "__main__":
@@ -126,3 +206,4 @@ if __name__ == "__main__":
     print("Top Results from Cosine Similarity:")
     for doc_id, score in cosine_results:
         print(f"Document ID: {doc_id}, Score: {score:.4f}")
+

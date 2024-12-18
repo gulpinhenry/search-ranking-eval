@@ -16,3 +16,5 @@ python encode_passages.py \
 ## Optional Arguments
 - --model_name: Name of the SentenceTransformer model to use for encoding. Defaults to all-MiniLM-L6-v2. You can choose any model from the SentenceTransformers model repository.
 - --batch_size: Batch size for encoding passages. Defaults to 64. Adjust this based on your system's memory capacity.
+
+python ./embedding/encode_passages.py --collection_file ./datasets/msmarco_hw3/collection.tsv --subset_file ./datasets/msmarco_hw3/msmarco_passages_subset.tsv --output_file ./embedding/all-MiniLM-L6-v2_encoded_passages.pkl

@@ -26,7 +26,8 @@ class PassageManager(metaclass=SingletonMeta):
         self.embeddings = {}  # Dictionary to store embeddings by ID
         self.ids = []  # List to store IDs for ordered access
         
-        self.load_embeddings(embeddings_file)
+        if embeddings_file:
+            self.load_embeddings(embeddings_file)
         self.load_passages(collection_file, subset_file)
 
     def load_embeddings(self, filename):
@@ -60,7 +61,9 @@ class PassageManager(metaclass=SingletonMeta):
             filtered_data = collection_data
 
         for _, row in filtered_data.iterrows():
-            self.passages[row['id']] = row['passage']
+            self.ids.append(row['id'])
+            self.passages[row['id']] = row['passage']  
+        print(f"Loaded {len(self.passages)} passages.")
 
     def get_passage(self, passage_id):
         """Get a passage by its ID."""
@@ -68,7 +71,7 @@ class PassageManager(metaclass=SingletonMeta):
 
     def get_embedding(self, passage_id):
         """Get the embedding of a passage by its ID."""
-        return self.embeddings.get(passage_id, None)
+        return None if not self.embeddings else self.embeddings.get(passage_id, None)
 
     def get_all_ids(self):
         """Get a list of all passage IDs."""
@@ -85,15 +88,17 @@ class QueryManager(metaclass=SingletonMeta):
             embedding_files (list of str, optional): A list of paths to the query embeddings files (pickle).
         """
         self.queries = {}  # Dictionary to store queries by ID
-        self.embeddings = {}  # Dictionary to store query embeddings by ID
+        if embedding_files:
+            self.embeddings = {}  # Dictionary to store query embeddings by ID
         
         # Load queries from all specified query files
         for query_file in query_files:
             self.load_queries(query_file)
         
         # Load embeddings from all specified embedding files if provided
-        for embedding_file in embedding_files:
-            self.load_embeddings(embedding_file)
+        if embedding_files:
+            for embedding_file in embedding_files:
+                self.load_embeddings(embedding_file)
 
     def load_queries(self, query_file):
         """Load queries from a TSV file."""
@@ -124,7 +129,7 @@ class QueryManager(metaclass=SingletonMeta):
 
     def get_embedding(self, query_id):
         """Get the embedding of a query by its ID."""
-        return self.embeddings.get(query_id, None)
+        return None if not self.embeddings else self.embeddings.get(query_id, None)
 
     def get_all_query_ids(self):
         """Get a list of all query IDs."""
