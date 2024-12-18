@@ -4,6 +4,8 @@ import numpy as np
 from sentence_transformers import CrossEncoder
 from utils import BaseIndexer, QueryManager, PassageManager
 import math
+import faiss
+
 
 class CrossEncoderIndexer(BaseIndexer):
     def __init__(self, model_name):
@@ -177,6 +179,85 @@ class BM25Indexer(BaseIndexer):
         # Sort the documents by score in descending order and get the top_k
         top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
         return top_documents
+
+class HNSWIndexer(BaseIndexer):
+    def __init__(self, m=8, ef_construction=200, ef_search=50):
+        """
+        Initialize the HNSWIndexer and build the index using passage embeddings.
+        """
+        self.m = m
+        self.ef_construction = ef_construction
+        self.ef_search = ef_search
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.passage_manager = PassageManager()
+        self.index = None
+        self.ids = []
+        self.build_index()
+
+    def build_index(self):
+        """
+        Build the HNSW index using embeddings from PassageManager.
+        """
+        embeddings = []
+        ids = []
+        for doc_id in self.passage_manager.get_all_ids():
+            embedding = self.passage_manager.get_embedding(doc_id)
+            if embedding is not None:
+                embeddings.append(embedding)
+                ids.append(doc_id)
+        if not embeddings:
+            raise ValueError("No embeddings found in PassageManager.")
+        embeddings = np.stack(embeddings).astype('float32')
+        self.ids = np.array(ids)
+        d = embeddings.shape[1]  # Dimension of embeddings
+
+        # Initialize HNSW index
+        self.index = faiss.IndexHNSWFlat(d, self.m, faiss.METRIC_INNER_PRODUCT)
+        self.index.hnsw.efConstruction = self.ef_construction
+        self.index.hnsw.efSearch = self.ef_search
+
+        # Normalize embeddings for inner product similarity
+        faiss.normalize_L2(embeddings)
+
+        # Add embeddings to the index
+        self.index.add(embeddings)
+
+    def search(self, query_id, documents_id, top_k):
+        """
+        Search for the top_k similar documents to the query.
+
+        Parameters:
+            query_id (str): The ID of the query.
+            documents_id (list): The list of document IDs to search over.
+            top_k (int): The number of top results to return.
+
+        Returns:
+            List[Tuple[str, float]]: List of tuples containing (document_id, score).
+        """
+        if self.index is None:
+            raise ValueError("Index not built.")
+
+        # Retrieve the query embedding
+        query_embedding = QueryManager().get_embedding(query_id)
+        if query_embedding is None:
+            raise ValueError(f"No embedding found for query ID {query_id}.")
+
+        query_embedding = np.array(query_embedding).astype('float32').reshape(1, -1)
+        faiss.normalize_L2(query_embedding)
+
+        # Search the index
+        distances, indices = self.index.search(query_embedding, top_k)
+
+        # Map internal indices to document IDs and scores
+        top_documents = []
+        for idx_list, dist_list in zip(indices, distances):
+            for idx, dist in zip(idx_list, dist_list):
+                doc_id = self.ids[idx]
+                if doc_id in documents_id:
+                    score = float(dist)
+                    top_documents.append((doc_id, score))
+
+        return top_documents[:top_k]    
 
 # Example usage
 if __name__ == "__main__":

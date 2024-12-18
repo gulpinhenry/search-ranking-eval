@@ -149,3 +149,24 @@ class BaseIndexer():
             documents_id, scores for the top_k results.
         """
         pass
+
+def load_qrels(qrels_file_path):
+    """
+    Loads the qrels file into a dictionary.
+
+    Parameters:
+    - qrels_file_path (str): Path to the qrels file.
+
+    Returns:
+    - qrels (dict): Dictionary with query IDs as keys and dicts of doc IDs and relevance as values.
+    """
+    qrels = {}
+    with open(qrels_file_path, 'r') as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) >= 4:
+                qid, _, docid, rel = parts[0], parts[1], parts[2], parts[3]
+                if qid not in qrels:
+                    qrels[qid] = {}
+                qrels[qid][docid] = int(rel)
+    return qrels
