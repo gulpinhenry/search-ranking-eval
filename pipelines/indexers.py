@@ -149,6 +149,9 @@ class BM25Indexer(BaseIndexer):
                 term_frequencies_in_doc[token] = term_frequencies_in_doc.get(token, 0) + 1
             self.term_frequencies[docId] = term_frequencies_in_doc
 
+        # Initialize cache
+        self.cache = {}
+
     def score(self, query_tokens, doc_id):
         """
         Compute the BM25 score for a single document and query.
@@ -156,9 +159,6 @@ class BM25Indexer(BaseIndexer):
         score = 0.0
         doc_tokens = self.doc_id_to_tokens.get(doc_id, [])
         doc_len = self.doc_lengths.get(doc_id, 0)
-        # term_frequencies = {}
-        # for token in doc_tokens:
-        #     term_frequencies[token] = term_frequencies.get(token, 0) + 1
         for term in query_tokens:
             if term in self.idf:
                 tf = self.term_frequencies.get(doc_id, {}).get(term, 0)
@@ -179,6 +179,11 @@ class BM25Indexer(BaseIndexer):
         Returns:
             List of tuples containing (document_id, score) for the top_k results.
         """
+        # Check cache for results
+        cache_key = (query_id, documents_id[-1], documents_id[0], len(documents_id))
+        if cache_key in self.cache:
+            return self.cache[cache_key][:top_k]
+
         # Retrieve the actual query text using QueryManager
         query = QueryManager().get_query(query_id)
         if query is None:
@@ -191,9 +196,13 @@ class BM25Indexer(BaseIndexer):
             if doc_id in self.doc_id_to_tokens:
                 score = self.score(query_tokens, doc_id)
                 scored_documents.append((doc_id, score))
-        # Sort the documents by score in descending order and get the top_k
-        top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
-        return top_documents
+        # Sort the documents by score in descending order and get the top 2000
+        top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)
+
+        # Always cache the top 2000 results
+        self.cache[cache_key] = top_documents[:2000]
+
+        return top_documents[:top_k]  # Return only the requested top_k results
 
     def __str__(self):
         return f"BM25({self.k1}-{self.b})"

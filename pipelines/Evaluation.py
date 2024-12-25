@@ -154,35 +154,39 @@ if __name__ == "__main__":
     # Initialize RetrievalPipeline
     pipe_start = time.time()
     hnsw = HNSWIndexer()
-    bm25 = BM25Indexer()
+    # bm25 = BM25Indexer()
     # pipe = RetrievalPipeline([
     #     bm25, 
     #     CrossEncoderIndexer("cross-encoder/ms-marco-MiniLM-L-12-v2")
     # ])
     pipelines = [
+        # RetrievalPipeline([
+        # bm25, 
+        # CosineSimilarityIndexer()]),
+        
+        # RetrievalPipeline([
+        # bm25, 
+        # CrossEncoderIndexer("cross-encoder/ms-marco-TinyBERT-L-2-v2")]),
+        
+        # RetrievalPipeline([
+        # bm25, 
+        # hnsw]),
+        
+        # RetrievalPipeline([
+        # hnsw, 
+        # CrossEncoderIndexer("cross-encoder/ms-marco-MiniLM-L-12-v2")]),
+        
+        # RetrievalPipeline([
+        # hnsw, 
+        # CrossEncoderIndexer("cross-encoder/ms-marco-TinyBERT-L-2-v2")]),
+        
+        # RetrievalPipeline([
+        # hnsw, 
+        # bm25]),
+        
         RetrievalPipeline([
-        bm25, 
+        hnsw, 
         CosineSimilarityIndexer()]),
-        
-        RetrievalPipeline([
-        bm25, 
-        CrossEncoderIndexer("cross-encoder/ms-marco-TinyBERT-L-2-v2")]),
-        
-        RetrievalPipeline([
-        bm25, 
-        hnsw]),
-        
-        RetrievalPipeline([
-        hnsw, 
-        CrossEncoderIndexer("cross-encoder/ms-marco-MiniLM-L-12-v2")]),
-        
-        RetrievalPipeline([
-        hnsw, 
-        CrossEncoderIndexer("cross-encoder/ms-marco-TinyBERT-L-2-v2")]),
-        
-        RetrievalPipeline([
-        hnsw, 
-        bm25]),
         
     ]
     pipe_time = time.time() - pipe_start
@@ -190,7 +194,7 @@ if __name__ == "__main__":
 
     top_n = [1000, 100]
     qrels_files = ["../datasets/qrels.eval.one.tsv", "../datasets/qrels.eval.two.tsv", "../datasets/qrels.dev.fixed.tsv"]
-    output_folder = "../output/evaluation_results"
+    output_folder = "../output/evaluation_results_1"
     for pipe in pipelines:
         run_evaluation(pipe, top_n, qrels_files, output_folder, [100, 10])
 
