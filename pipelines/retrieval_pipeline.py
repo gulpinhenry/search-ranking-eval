@@ -33,3 +33,6 @@ class RetrievalPipeline:
 
 
         return results, scores  # No scores if the last indexer is not a scorer
+    
+    def __str__(self):
+        return ', '.join([str(i) for i in self.indexers])

@@ -1,3 +1,4 @@
+import time
 import torch
 from torch import nn
 import numpy as np
@@ -15,6 +16,7 @@ class CrossEncoderIndexer(BaseIndexer):
         Parameters:
             model_name (str): The name of the pre-trained CrossEncoder model.
         """
+        self.model_name = model_name
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model = CrossEncoder(model_name, device=self.device)
         self.passage_manager = PassageManager()
@@ -49,6 +51,10 @@ class CrossEncoderIndexer(BaseIndexer):
         top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
 
         return top_documents
+    
+    def __str__(self):
+        return f"C({str(self.model_name)})"
+
 
 # Bi-encoder
 class CosineSimilarityIndexer(BaseIndexer):
@@ -101,6 +107,9 @@ class CosineSimilarityIndexer(BaseIndexer):
 
         return top_documents
     
+    def __str__(self):
+        return f"Cos()"
+    
 class BM25Indexer(BaseIndexer):
     def __init__(self):
         """
@@ -133,6 +142,12 @@ class BM25Indexer(BaseIndexer):
         # Set BM25 parameters
         self.k1 = 1.5
         self.b = 0.75
+        self.term_frequencies = {}
+        for docId in self.corpus_ids:
+            term_frequencies_in_doc = {}
+            for token in self.doc_id_to_tokens[docId]:
+                term_frequencies_in_doc[token] = term_frequencies_in_doc.get(token, 0) + 1
+            self.term_frequencies[docId] = term_frequencies_in_doc
 
     def score(self, query_tokens, doc_id):
         """
@@ -141,12 +156,12 @@ class BM25Indexer(BaseIndexer):
         score = 0.0
         doc_tokens = self.doc_id_to_tokens.get(doc_id, [])
         doc_len = self.doc_lengths.get(doc_id, 0)
-        term_frequencies = {}
-        for token in doc_tokens:
-            term_frequencies[token] = term_frequencies.get(token, 0) + 1
+        # term_frequencies = {}
+        # for token in doc_tokens:
+        #     term_frequencies[token] = term_frequencies.get(token, 0) + 1
         for term in query_tokens:
             if term in self.idf:
-                tf = term_frequencies.get(term, 0)
+                tf = self.term_frequencies.get(doc_id, {}).get(term, 0)
                 numerator = self.idf[term] * tf * (self.k1 + 1)
                 denominator = tf + self.k1 * (1 - self.b + self.b * doc_len / self.avgdl)
                 score += numerator / denominator
@@ -179,6 +194,9 @@ class BM25Indexer(BaseIndexer):
         # Sort the documents by score in descending order and get the top_k
         top_documents = sorted(scored_documents, key=lambda x: x[1], reverse=True)[:top_k]
         return top_documents
+
+    def __str__(self):
+        return f"BM25({self.k1}-{self.b})"
 
 class HNSWIndexer(BaseIndexer):
     def __init__(self, m=8, ef_construction=200, ef_search=50):
@@ -237,27 +255,31 @@ class HNSWIndexer(BaseIndexer):
         if self.index is None:
             raise ValueError("Index not built.")
 
-        # Retrieve the query embedding
+        # Step 1: Retrieve the query embedding
         query_embedding = QueryManager().get_embedding(query_id)
         if query_embedding is None:
             raise ValueError(f"No embedding found for query ID {query_id}.")
 
+        # Step 2: Prepare the query embedding
         query_embedding = np.array(query_embedding).astype('float32').reshape(1, -1)
         faiss.normalize_L2(query_embedding)
 
-        # Search the index
+        # Step 3: Search the index
         distances, indices = self.index.search(query_embedding, top_k)
 
-        # Map internal indices to document IDs and scores
+        # Step 4: Map internal indices to document IDs and scores
         top_documents = []
-        for idx_list, dist_list in zip(indices, distances):
-            for idx, dist in zip(idx_list, dist_list):
-                doc_id = self.ids[idx]
-                if doc_id in documents_id:
-                    score = float(dist)
-                    top_documents.append((doc_id, score))
+        if indices.size > 0:
+            for doc_idx, score in zip(indices[0], distances[0]):
+                doc_id = self.ids[doc_idx]
+                top_documents.append((doc_id, float(score)))
+                
 
-        return top_documents[:top_k]    
+        return top_documents[:top_k]   
+    
+    def __str__(self):
+        return f"HNSW({self.m}-{self.ef_construction}-{self.ef_search})"
+    
 
 # Example usage
 if __name__ == "__main__":

@@ -24,11 +24,19 @@ class PassageManager(metaclass=SingletonMeta):
         """
         self.passages = {}  # Dictionary to store passages by ID
         self.embeddings = {}  # Dictionary to store embeddings by ID
-        self.ids = []  # List to store IDs for ordered access
+        self.ids = set()
         
         if embeddings_file:
             self.load_embeddings(embeddings_file)
         self.load_passages(collection_file, subset_file)
+    
+    
+    @classmethod
+    def create(cls):
+        """Create a new instance of PassageManager or raise an error if none exists."""
+        if cls not in cls._instances:
+            raise RuntimeError("No available instance of PassageManager. Please create one with parameters.")
+        return cls._instances[cls]
 
     def load_embeddings(self, filename):
         """Load embeddings from a pickle file."""
@@ -44,7 +52,7 @@ class PassageManager(metaclass=SingletonMeta):
 
         for passage_id, embedding in zip(passage_ids, encoded_passages):
             self.embeddings[passage_id] = embedding
-            self.ids.append(passage_id)
+            self.ids.add(passage_id)
 
     def load_passages(self, collection_file, subset_file=None):
         """Load passages from a collection.tsv file and filter based on subset.tsv."""
@@ -61,7 +69,7 @@ class PassageManager(metaclass=SingletonMeta):
             filtered_data = collection_data
 
         for _, row in filtered_data.iterrows():
-            self.ids.append(row['id'])
+            self.ids.add(row['id'])
             self.passages[row['id']] = row['passage']  
         print(f"Loaded {len(self.passages)} passages.")
 
@@ -75,7 +83,7 @@ class PassageManager(metaclass=SingletonMeta):
 
     def get_all_ids(self):
         """Get a list of all passage IDs."""
-        return self.ids
+        return list(self.ids)
 
 
 class QueryManager(metaclass=SingletonMeta):
@@ -99,6 +107,13 @@ class QueryManager(metaclass=SingletonMeta):
         if embedding_files:
             for embedding_file in embedding_files:
                 self.load_embeddings(embedding_file)
+    
+    @classmethod
+    def create(cls):
+        """Create a new instance of PassageManager or raise an error if none exists."""
+        if cls not in cls._instances:
+            raise RuntimeError("No available instance of PassageManager. Please create one with parameters.")
+        return cls._instances[cls]
 
     def load_queries(self, query_file):
         """Load queries from a TSV file."""

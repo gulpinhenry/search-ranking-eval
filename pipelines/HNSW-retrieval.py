@@ -30,7 +30,7 @@ if __name__ == "__main__":
     print(results)
     print(scores)
     
-    qrels = load_qrels('./datasets/msmarco_hw3/qrels.dev.tsv')
+    qrels = load_qrels('../datasets/qrels.dev.tsv')
 
     run = {'2': {doc_id: float(score) for doc_id, score in zip(results, scores)}}
 
@@ -38,7 +38,8 @@ if __name__ == "__main__":
     evaluator = pytrec_eval.RelevanceEvaluator(qrels, {'map', 'ndcg'})
 
     metrics = evaluator.evaluate(run)
-
-    for metric in sorted(metrics['2'].keys()):
-        print(f'{metric}: {metrics["2"][metric]}')
+    for metric in sorted(metrics.keys()):
+        print(f'{metric}: {metrics[metric]}')
+    # for metric in sorted(metrics['2'].keys()):
+    #     print(f'{metric}: {metrics["2"][metric]}')
     code.interact(local=locals())
